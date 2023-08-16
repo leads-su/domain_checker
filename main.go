@@ -55,7 +55,7 @@ func main() {
 		panic(err)
 	}
 
-	in := make(chan string, 10)
+	in := make(chan string, lp.NumProc)
 
 	// инициализация и заполнение списка фабрик чекеров
 	var checkers []checker.CheckerFactoryInterface

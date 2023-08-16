@@ -1,8 +1,10 @@
 package checker
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"time"
 )
 
 type CertChecker struct {
@@ -18,13 +20,25 @@ func CreateCertChecker(domain string, port string) *CertChecker {
 }
 
 func (cc *CertChecker) Do() error {
-	_, err := tls.Dial(
-		"tcp",
-		fmt.Sprintf("%s:%s", cc.Domain, cc.Port),
-		&tls.Config{
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dialer := tls.Dialer{
+		Config: &tls.Config{
 			InsecureSkipVerify: false,
 		},
+	}
+	conn, err := dialer.DialContext(
+		ctx,
+		"tcp",
+		fmt.Sprintf("%s:%s", cc.Domain, cc.Port),
 	)
+	cancel()
+
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
 	if err != nil {
 		return fmt.Errorf("%s: %s", cc.Domain, err)
 	}

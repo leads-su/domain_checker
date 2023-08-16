@@ -3,14 +3,13 @@ package main
 import (
 	"domain_checker/pkg/checker"
 	"domain_checker/pkg/params"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
-// TODO:возможно перенести в params
 func FileGetContents(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -32,26 +31,22 @@ func FileGetContents(path string) (string, error) {
 }
 
 // функция логики потока
-func Thread(in chan string, lp *params.LaunchParams, checkers *[]checker.CheckerFactoryInterface) {
-	for {
-		domain, ok := <-in
-
-		if !ok {
-			break
-		}
-
-		// проход по списку фабрик череров и создание конкретного чекера для этого теста
+func Thread(wg *sync.WaitGroup, in chan string, lp *params.LaunchParams, checkers *[]checker.CheckerFactoryInterface) {
+	defer wg.Done()
+	for domain := range in {
+		// проход по списку фабрик чекеров и создание конкретного чекера для этого теста
 		for _, c := range *checkers {
 			err := c.Make(domain, lp).Do()
 
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				log.Printf("%v\n", err)
 			}
 		}
 	}
 }
 
 func main() {
+	log.SetFlags(0)
 	checkerRegistry := checker.GetCheckerRegistry()
 	lp := params.InitLaunchParams(checkerRegistry.GetAvailableNames())
 	content, err := FileGetContents(lp.PathFile)
@@ -60,7 +55,7 @@ func main() {
 		panic(err)
 	}
 
-	in := make(chan string)
+	in := make(chan string, 10)
 
 	// инициализация и заполнение списка фабрик чекеров
 	var checkers []checker.CheckerFactoryInterface
@@ -68,11 +63,14 @@ func main() {
 		checkers = append(checkers, checkerRegistry.Get(checker))
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(lp.NumProc)
+
 	// создание горутин
 	i := 0
 	for i < lp.NumProc {
 		i++
-		go Thread(in, lp, &checkers)
+		go Thread(&wg, in, lp, &checkers)
 	}
 
 	// отправка списка доменов на проверку
@@ -80,4 +78,7 @@ func main() {
 	for _, site := range sites {
 		in <- site
 	}
+
+	close(in)
+	wg.Wait()
 }

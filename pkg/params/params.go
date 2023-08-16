@@ -18,9 +18,15 @@ type LaunchParams struct {
 
 func InitLaunchParams(availableCheckers *[]string) *LaunchParams {
 	// options
-	numProc := flag.Int("n", 5, "count routines [1, 100], default 5")
-	ips := flag.String("a", "", "list of IP for check A record in DNS")
-	dryRun := flag.Bool("dry-run", false, "dry run :)")
+
+	numProc := 5
+	flag.IntVar(&numProc, "n", 5, "count routines [1, 100], default 5")
+
+	ips := ""
+	flag.StringVar(&ips, "a", "", "list of IP for check A record in DNS")
+
+	dryRun := false
+	flag.BoolVar(&dryRun, "dry-run", false, "dry run :)")
 
 	usageDesc := fmt.Sprintf(
 		"Usage of %s:\n\n%s",
@@ -53,15 +59,15 @@ func InitLaunchParams(availableCheckers *[]string) *LaunchParams {
 	checkers := flag.Args()[0]
 	pathFile := flag.Args()[1]
 
-	lp.SetNumProc(*numProc)
-	lp.SetIPs(*ips)
+	lp.SetNumProc(numProc)
+	lp.SetIPs(ips)
 	lp.SetCheckers(checkers, availableCheckers)
 	lp.SetPathFile(pathFile)
 
-	fmt.Printf("checkers: %s, threads: %d, file: %s\n", checkers, *numProc, pathFile)
+	fmt.Printf("checkers: %s, threads: %d, file: %s\n", checkers, numProc, pathFile)
 
 	// если сухой запуск то завершаем работу
-	if *dryRun {
+	if dryRun {
 		fmt.Println("This is dry run, everything is fine, you can try a real launch!")
 		os.Exit(0)
 	}
@@ -70,9 +76,7 @@ func InitLaunchParams(availableCheckers *[]string) *LaunchParams {
 }
 
 func (lp *LaunchParams) SetNumProc(numProc int) *LaunchParams {
-	if numProc < 1 {
-		lp.error(fmt.Sprintf("unacceptable number of process [%d], should be [1, 100]", numProc))
-	} else if numProc > 100 {
+	if numProc < 1 || numProc > 100 {
 		lp.error(fmt.Sprintf("unacceptable number of process [%d], should be [1, 100]", numProc))
 	}
 
@@ -85,6 +89,9 @@ func (lp *LaunchParams) SetCheckers(checkers string, availableCheckers *[]string
 	a := strings.Split(checkers, ",")
 
 	inArray := func(needle string, a *[]string) bool {
+		if a == nil {
+			return false
+		}
 		for _, key := range *a {
 			if needle == key {
 				return true
